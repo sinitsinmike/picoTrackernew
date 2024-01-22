@@ -1,5 +1,6 @@
 
 #include "InstrumentBank.h"
+#include "Application/Instruments/MacroInstrument.h"
 #include "Application/Instruments/MidiInstrument.h"
 #include "Application/Instruments/SampleInstrument.h"
 #include "Application/Instruments/SamplePool.h"
@@ -18,6 +19,11 @@ InstrumentBank::InstrumentBank() : Persistent("INSTRUMENTBANK") {
   for (int i = 0; i < MAX_SAMPLEINSTRUMENT_COUNT; i++) {
     Trace::Debug("Loading sample instrument: %i", i);
     SampleInstrument *s = new SampleInstrument();
+    instrument_[i] = s;
+  }
+  for (int i = 0; i < MAX_MACROINSTRUMENT_COUNT; i++) {
+    Trace::Debug("Loading macro instrument: %i", i);
+    MacroInstrument *s = new MacroInstrument();
     instrument_[i] = s;
   }
   for (int i = 0; i < MAX_MIDIINSTRUMENT_COUNT; i++) {
@@ -114,7 +120,13 @@ void InstrumentBank::RestoreContent(PersistencyDocument *doc) {
           }
         }
       } else {
-        it = (id < MAX_SAMPLEINSTRUMENT_COUNT) ? IT_SAMPLE : IT_MIDI;
+        if (id < MAX_SAMPLEINSTRUMENT_COUNT) {
+          it = IT_SAMPLE;
+        } else if (id < MAX_MACROINSTRUMENT_COUNT) {
+          it = IT_MACRO;
+        } else {
+          it = IT_MIDI;
+        }
       };
       if (id < MAX_INSTRUMENT_COUNT) {
         I_Instrument *instr = instrument_[id];
@@ -123,6 +135,9 @@ void InstrumentBank::RestoreContent(PersistencyDocument *doc) {
           switch (it) {
           case IT_SAMPLE:
             instr = new SampleInstrument();
+            break;
+          case IT_MACRO:
+            instr = new MacroInstrument();
             break;
           case IT_MIDI:
             instr = new MidiInstrument();
