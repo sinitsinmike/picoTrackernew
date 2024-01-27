@@ -92,12 +92,27 @@ void InstrumentView::fillMacroParameters() {
 
   position._y += 1;
   v = instrument->FindVariable(BIP_TIMBRE);
-  f1 = new UIIntVarField(position, *v, "timbre: %4.4X", 0, 0x7F, 1, 0x10);
+  f1 = new UIIntVarField(position, *v, "timbre: %2.2X", 0, 0xFF, 1, 0x10);
   T_SimpleList<UIField>::Insert(f1);
 
   position._y += 1;
   v = instrument->FindVariable(BIP_COLOR);
-  f1 = new UIIntVarField(position, *v, "color: %4.4X", 0, 0x7F, 1, 0x10);
+  f1 = new UIIntVarField(position, *v, "color: %2.2X", 0, 0xFF, 1, 0x10);
+  T_SimpleList<UIField>::Insert(f1);
+
+  position._y += 1;
+  v = instrument->FindVariable(BIP_ATTACK);
+  f1 = new UIIntVarField(position, *v, "attack: %2.2X", 0, 0xFF, 1, 0x10);
+  T_SimpleList<UIField>::Insert(f1);
+
+  position._y += 1;
+  v = instrument->FindVariable(BIP_DECAY);
+  f1 = new UIIntVarField(position, *v, "decay: %2.2X", 0, 0xFF, 1, 0x10);
+  T_SimpleList<UIField>::Insert(f1);
+
+  position._y += 1;
+  v = instrument->FindVariable(BIP_SIGNATURE);
+  f1 = new UIIntVarField(position, *v, "signature: %2.2X", 0, 0xFF, 1, 0x10);
   T_SimpleList<UIField>::Insert(f1);
 }
 

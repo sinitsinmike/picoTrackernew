@@ -18,8 +18,9 @@
 #define BIP_COLOR MAKE_FOURCC('C', 'O', 'L', 'R')
 #define BIP_ATTACK MAKE_FOURCC('A', 'T', 'C', 'K')
 #define BIP_DECAY MAKE_FOURCC('D', 'E', 'C', 'Y')
-#define BIP_VOLUME MAKE_FOURCC('V', 'O', 'L', 'M')
-#define BIP_CRUSH MAKE_FOURCC('C', 'R', 'S', 'H')
+#define BIP_SIGNATURE MAKE_FOURCC('S', 'I', 'G', 'N')
+// #define BIP_VOLUME MAKE_FOURCC('V', 'O', 'L', 'M')
+// #define BIP_CRUSH MAKE_FOURCC('C', 'R', 'S', 'H')
 
 class MacroInstrument : public I_Instrument, I_Observer {
 
@@ -52,6 +53,8 @@ public:
 
 protected:
 private:
+  bool running_;
+
   braids::MacroOscillator osc_;
   braids::Envelope envelope_;
   braids::Quantizer quantizer_;
@@ -59,7 +62,13 @@ private:
   braids::VcoJitterSource jitter_source_;
 
   braids::MacroOscillatorShape shape_;
+  Variable *timbre_;
+  Variable *color_;
+  Variable *attack_;
+  Variable *decay_;
+  Variable *signature_;
+
   uint16_t gain_lp_;
-  static uint8_t sync_samples_[4096];
+  uint16_t remain_;
 };
 #endif

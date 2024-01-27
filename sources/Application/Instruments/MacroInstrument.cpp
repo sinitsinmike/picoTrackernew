@@ -11,44 +11,38 @@
 #include "pico/rand.h"
 #include <assert.h>
 
-#include <math.h>
-#include <stdio.h>
-#include <string.h>
-
-uint8_t MacroInstrument::sync_samples_[4096];
-
 MacroInstrument::MacroInstrument() {
-  // Initialize exported variables
-  //  auto setting_ = braids::SETTING_OSCILLATOR_SHAPE;
-  //   uint8_t value = braids::settings.GetValue(setting_);
-  /*  if (setting_ == braids::SETTING_OSCILLATOR_SHAPE &&
-      braids::settings.meta_modulation()) {
-    value = meta_shape_;
-    }*/
-  WatchedVariable *wv =
-      new WatchedVariable("shape", BIP_SHAPE, braids::algo_values,
-                          braids::MACRO_OSC_SHAPE_LAST - 2, 0);
-  Insert(wv);
-  wv->AddObserver(*this);
 
-  //  Variable *v = new Variable("freq", BIP_FREQ, 0x7F);
-  //  Insert(v);
+  running_ = false;
 
-  Variable *v = new Variable("timbre", BIP_TIMBRE, 0x7F);
+  Variable *v = new Variable("shape", BIP_SHAPE, braids::algo_values,
+                             braids::MACRO_OSC_SHAPE_LAST - 2, 0);
   Insert(v);
 
-  v = new Variable("color", BIP_COLOR, 0x7F);
-  Insert(v);
+  timbre_ = new Variable("timbre", BIP_TIMBRE, 0x7f);
+  Insert(timbre_);
+
+  color_ = new Variable("color", BIP_COLOR, 0x7f);
+  Insert(color_);
+
+  attack_ = new Variable("Attack", BIP_ATTACK, 0);
+  Insert(attack_);
+
+  decay_ = new Variable("Decay", BIP_DECAY, 0x05);
+  Insert(decay_);
+
+  signature_ = new Variable("Signature", BIP_SIGNATURE, 0);
+  Insert(signature_);
 }
 
 MacroInstrument::~MacroInstrument() {}
 
 bool MacroInstrument::Init() {
-  Variable *vShape = FindVariable(BIP_SHAPE);
-  shape_ = static_cast<braids::MacroOscillatorShape>(vShape->GetInt());
+  printf("init!\n");
 
   osc_.Init();
-  quantizer_.Init();
+  // we shouldn't need a quantizer
+  //  quantizer_.Init();
   envelope_.Init();
   ws_.Init(get_rand_32());
   jitter_source_.Init();
@@ -60,51 +54,78 @@ void MacroInstrument::OnStart(){/* tableState_.Reset();*/};
 
 bool MacroInstrument::Start(int channel, unsigned char midinote,
                             bool cleanstart) {
-  envelope_.Update(0, 5 * 8); // Attack and Decay
-  //  uint32_t ad_value = envelope_.Render();
-  osc_.set_shape(shape_);
-  osc_.set_parameters(0, 0); // timbre and color
+  Variable *vShape = FindVariable(BIP_SHAPE);
+  shape_ = static_cast<braids::MacroOscillatorShape>(vShape->GetInt());
 
-  // TODO: Do pitch right, what is expected by braids?
-  osc_.set_pitch(int16_t(440.0 * pow(2.0, (midinote - 69.0) / 12.0)));
-  printf("pitch is %i\n", int16_t(440.0 * pow(2.0, (midinote - 69.0) / 12.0)));
-  printf("midinote is %i\n", midinote);
+  running_ = true;
+
+  // used convention: pT midi #81 == A4 vs braids #69
+  int32_t pitch = 128 * (midinote - 12);
+
+  if (pitch > 16383) {
+    pitch = 16383;
+  } else if (pitch < 0) {
+    pitch = 0;
+  }
+  osc_.set_pitch(pitch);
+
+  // start is a trigger, reset data
+  osc_.Strike();
+  envelope_.Trigger(braids::ENV_SEGMENT_ATTACK);
   return true;
 }
 
-void MacroInstrument::Stop(int channel) { /*running_ = false; */
-}
+void MacroInstrument::Stop(int channel) { running_ = false; }
 
 // Size in samples
 bool MacroInstrument::Render(int channel, fixed *buffer, int size,
                              bool updateTick) {
   //  int start = micros();
 
-  //    uint8_t *sync_buffer = sync_samples[render_block];
-  //  int16_t *render_buffer = audio_samples[render_block];
-  uint8_t *sync_buffer = sync_samples_;
-  int16_t *render_buffer = (int16_t *)buffer;
+  // clear the fixed point buffer
+  SYS_MEMSET(buffer, 0, size * 2 * sizeof(fixed));
 
-  osc_.Render(sync_buffer, render_buffer, size);
+  envelope_.Update(attack_->GetInt(), decay_->GetInt());
+  uint32_t ad_value = envelope_.Render();
 
-  /*
-  int16_t held_sample = 0;
-  uint16_t signature = 0;
-  size_t decimation_factor = 4;
-  int32_t gain = 65535;
-  uint16_t bit_mask = 0xff00;
-  for (int i = 0; i < size; i++) {
-    if ((i % decimation_factor) == 0) {
-      held_sample = buffer[i] & bit_mask;
+  osc_.set_shape(shape_);
+  osc_.set_parameters(timbre_->GetInt() * 128,
+                      color_->GetInt() * 128); // timbre and color
+
+  uint32_t block_size = 24;
+  uint32_t num_blocks = size / block_size;
+  remain_ = size % block_size;
+
+  uint8_t sync_buffer[24] = {};
+  int16_t render_buffer[24];
+  for (uint32_t i = 0; i < num_blocks; i++) {
+    osc_.Render(sync_buffer, render_buffer, block_size);
+    uint16_t signature = signature_->GetInt() * signature_->GetInt() * 4095;
+    for (uint32_t j = 0; j < block_size; j++) {
+      int16_t sample = render_buffer[j] * gain_lp_ >> 16;
+      gain_lp_ += (ad_value - gain_lp_) >> 4;
+
+      int16_t warped = ws_.Transform(sample);
+      int16_t mix = braids::Mix(sample, warped, signature) / 4.0;
+      int32_t fp_sample = i2fp(mix);
+      buffer[2 * (i * block_size + j)] = fp_sample;
+      buffer[2 * (i * block_size + j) + 1] = fp_sample;
     }
-    int16_t sample = held_sample * gain_lp_ >> 16;
-    gain_lp_ += (gain - gain_lp_) >> 4;
-    int16_t warped = ws_.Transform(sample);
-    buffer[i] = braids::Mix(sample, warped, signature);
-    //    printf("Buffer: %i\n)", buffer[i]);
-    }*/
+  }
 
-  //  printf("Render time: %i\n", micros() - start);
+  osc_.Render(sync_buffer, render_buffer, remain_);
+  uint16_t signature = signature_->GetInt() * signature_->GetInt() * 4095;
+  for (uint32_t j = 0; j < remain_; j++) {
+    int16_t sample = render_buffer[j] * gain_lp_ >> 16;
+    gain_lp_ += (ad_value - gain_lp_) >> 4;
+    int16_t warped = ws_.Transform(sample);
+
+    int16_t mix = braids::Mix(sample, warped, signature) / 4.0;
+    int32_t fp_sample = i2fp(mix);
+    buffer[2 * (num_blocks * block_size + j)] = fp_sample;
+    buffer[2 * (num_blocks * block_size + j) + 1] = fp_sample;
+  }
+
   return true;
 };
 

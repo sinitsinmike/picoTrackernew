@@ -50,6 +50,7 @@ add_compile_options(
   -Wno-format          # int != int32_t as far as the compiler is concerned because gcc has int32_t as long int
   # TODO: SHOULD FIX
   -Wno-int-to-pointer-cast
+  -Wno-array-bounds
 )
 
 add_subdirectory(Adapters)
@@ -81,7 +82,7 @@ target_compile_definitions(picoTracker PUBLIC
 
 # Debug output with USB uses +6K memory
 pico_enable_stdio_usb(${PROJECT_NAME} 0)
-pico_enable_stdio_uart(${PROJECT_NAME} 1)
+pico_enable_stdio_uart(${PROJECT_NAME} 0)
 
 # This is the default, but better to make it explicit
 pico_set_float_implementation(${PROJECT_NAME} pico)
