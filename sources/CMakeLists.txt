@@ -33,7 +33,7 @@ add_definitions(-DDISABLESF)
 # Enable loading samples into Flash
 add_definitions(-DLOAD_IN_FLASH)
 # Disable MIDI. Enable in order to use UART0 as stdio for debugging
-# add_definitions(-DDUMMY_MIDI)
+add_definitions(-DDUMMY_MIDI)
 # Disable feedback for sample instruments. Due to low memory in the PICO
 # there is very low chance to bring this back
 add_definitions(-DDISABLE_FEEDBACK)
@@ -50,6 +50,7 @@ add_compile_options(
   -Wno-format          # int != int32_t as far as the compiler is concerned because gcc has int32_t as long int
   # TODO: SHOULD FIX
   -Wno-int-to-pointer-cast
+  -Wno-unused-variable
 )
 
 add_subdirectory(Adapters)
@@ -81,7 +82,7 @@ target_compile_definitions(picoTracker PUBLIC
 
 # Debug output with USB uses +6K memory
 pico_enable_stdio_usb(${PROJECT_NAME} 0)
-pico_enable_stdio_uart(${PROJECT_NAME} 0)
+pico_enable_stdio_uart(${PROJECT_NAME} 1)
 
 # This is the default, but better to make it explicit
 pico_set_float_implementation(${PROJECT_NAME} pico)
